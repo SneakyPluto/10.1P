@@ -14,6 +14,9 @@
 #define PARTIAL_SEEK_TIMEOUT 4000     // 4 seconds timeout for partial seek
 #define FOLLOW_DISTANCE_THRESHOLD 10 // Distance threshold to stop moving forward
 
+State currentState = SEEK_FULL_CIRCLE;
+bool objectDetected = false;
+time_t lostTime = 0;  // Time when the object was lost
 
 // on-board LED ring, at PORT0 (onboard)
 MeRGBLed led(0, LEDNUM);
@@ -35,9 +38,6 @@ MeGyro gyro(1, 0x69);
 #define S1_IN_S2_OUT 0b10   // Left sensor on the line, right sensor off the line
 #define S1_OUT_S2_IN 0b01   // Left sensor off the line, right sensor on the line
 #define S1_OUT_S2_OUT 0b00  // Both sensors off the line
-
-
-float j, f, k;
 
 // Threshold to determine light source direction
 const int threshold = 6;  // Adjust as needed based on your environment
@@ -134,10 +134,6 @@ typedef enum {
   FOLLOW
 } State;
 
-
-State currentState = SEEK_FULL_CIRCLE;
-bool objectDetected = false;
-time_t lostTime = 0;  // Time when the object was lost
 
 // Function to check if the object is detected
 bool IsObjectDetected(void) {
@@ -282,95 +278,6 @@ void loop() {
 //   }
 // }
 
-
-void seekObject() {
-  while (true) {
-    double sensorFront = ultraSensorFront.distanceCm();
-    if (sensorFront < 25.0) {
-      Stop();
-      trackObject();
-    } else {
-      TurnLeft1();
-    }
-  }
-}
-
-void trackObject() {
-  double previousReading = ultraSensorFront.distanceCm();
-  while (true) {
-    double currentReading = ultraSensorFront.distanceCm();
-    if (currentReading >= 25.0) {
-      seekObject();
-      return;
-    } else if (currentReading < 25.0 && currentReading > 20.0) {
-      Stop();  // Object is in an optimal range
-    } else if (currentReading < previousReading) {
-      TurnLeft1();  // Object is moving closer, turn left
-    } else if (currentReading > previousReading) {
-      TurnRight1();  // Object is moving away, turn right
-    }
-    previousReading = currentReading;
-  }
-}
-
-void CheckObstacle() {
-  double sensorFront = ultraSensorFront.distanceCm();
-  if (sensorFront < 10.00) {
-    led.setColorAt(2, 0, 35, 35);
-    led.show();
-    trackLine();
-  }
-}
-
-void trackLine() {
-  int sensorState = lineFinder.readSensors();
-  while (sensorState != S1_OUT_S2_IN) {
-    TurnRight1();
-    sensorState = lineFinder.readSensors();
-  }
-
-  while (sensorState != S1_OUT_S2_OUT) {
-    TurnRight1();
-    sensorState = lineFinder.readSensors();
-  }
-}
-
-void followLine() {
-  int sensorState = lineFinder.readSensors();
-  switch (sensorState) {
-    case S1_OUT_S2_OUT:
-      led.setColorAt(2, 35, 0, 0);
-      led.show();
-      Serial.println("S1_OUT_S2_OUT");
-      Forward();
-      break;
-    case S1_IN_S2_OUT:
-      led.setColorAt(2, 0, 35, 0);
-      led.show();
-      Serial.println("S1_IN_S2_OUT");
-      TurnRight1();
-      delay(300);
-      Forward();
-      break;
-    case S1_OUT_S2_IN:
-      led.setColorAt(2, 0, 0, 35);
-      led.show();
-      Serial.println("S1_OUT_S2_IN");
-      TurnLeft1();
-      delay(300);
-      Forward();
-      break;
-    case S1_IN_S2_IN:
-      Serial.println("S1_IN_S2_IN");
-      // Decide what to do when both sensors are on the white background.
-      // Here, we'll stop the robot.
-      Backward();
-      break;
-    default:
-      break;
-  }
-  // delay(200); // Adjust the delay if necessary
-}
 
 void turnLeft(double degree) {
   gyro.update();
